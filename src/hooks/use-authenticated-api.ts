@@ -118,7 +118,8 @@ export function useAuthenticatedApi() {
 
         const endpointPath = normalizeEndpoint(endpoint);
         const requestRetries = options.retries ?? 0;
-        const requestTimeout = options.timeout ?? 3000;
+        // 15s default: serverless cold starts + upstream RPCs can easily exceed 3s.
+        const requestTimeout = options.timeout ?? 15000;
 
         // Build headers
         const headers = new Headers(options.headers);
