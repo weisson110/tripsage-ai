@@ -11,7 +11,8 @@ export type ApiKeyService =
   | "openrouter"
   | "anthropic"
   | "xai"
-  | "ollama";
+  | "ollama-cloud"
+  | "ollama-local";
 
 const DEFAULT_API_KEY_MIN_LENGTH = 20;
 const API_KEY_ALLOWED_PATTERN = /^[^\s]+$/;
@@ -20,8 +21,8 @@ const OPENAI_PREFIX = "sk-";
 const OPENROUTER_PREFIX = "sk-or-";
 const ANTHROPIC_PREFIX = "sk-ant-";
 const XAI_PREFIX = "xai-";
-// Ollama keys vary by deployment; only enforce a minimum length.
-const OLLAMA_MIN_LENGTH = 20;
+// Ollama keys vary by deployment; only enforce a minimum length for cloud variant.
+// ollama-local allows blank keys (no auth required).
 
 function getExpectedApiKeyPrefix(service: ApiKeyService): string {
   switch (service) {
@@ -33,7 +34,8 @@ function getExpectedApiKeyPrefix(service: ApiKeyService): string {
       return OPENROUTER_PREFIX;
     case "xai":
       return XAI_PREFIX;
-    case "ollama":
+    case "ollama-cloud":
+    case "ollama-local":
       // Ollama keys don't have a fixed prefix
       return "";
   }
@@ -54,8 +56,12 @@ function getPrefixMismatchError(service: ApiKeyService, apiKey: string): string 
     return `OpenRouter API keys must start with '${OPENROUTER_PREFIX}' (e.g., 'sk-or-v1-…').`;
   }
 
-  if (service === "ollama") {
-    return `Ollama keys must be at least ${OLLAMA_MIN_LENGTH} characters.`;
+  if (service === "ollama-cloud") {
+    return `Ollama Cloud keys must be at least ${DEFAULT_API_KEY_MIN_LENGTH} characters.`;
+  }
+
+  if (service === "ollama-local") {
+    return "Ollama-local API key is invalid.";
   }
 
   const expectedPrefix = getExpectedApiKeyPrefix(service);
@@ -66,8 +72,10 @@ function getServiceDisplayName(service: ApiKeyService): string {
   switch (service) {
     case "anthropic":
       return "Anthropic";
-    case "ollama":
-      return "Ollama";
+    case "ollama-cloud":
+      return "Ollama Cloud";
+    case "ollama-local":
+      return "Ollama (Self-hosted)";
     case "openai":
       return "OpenAI";
     case "openrouter":
@@ -116,14 +124,20 @@ export function validateApiKeyInput(
       if (hasWrongProviderPrefix || !apiKey.startsWith(OPENAI_PREFIX)) {
         return { apiKey, error: getPrefixMismatchError(service, apiKey), ok: false };
       }
-    } else if (service === "ollama") {
-      // Ollama only requires minimum length (no fixed prefix)
-      if (apiKey.length < OLLAMA_MIN_LENGTH) {
+    } else if (service === "ollama-cloud") {
+      // Ollama Cloud requires minimum length
+      if (apiKey.length < DEFAULT_API_KEY_MIN_LENGTH) {
         return {
           apiKey,
-          error: `Ollama keys must be at least ${OLLAMA_MIN_LENGTH} characters.`,
+          error: `Ollama Cloud keys must be at least ${DEFAULT_API_KEY_MIN_LENGTH} characters.`,
           ok: false,
         };
+      }
+    } else if (service === "ollama-local") {
+      // Ollama local allows blank keys (no auth)
+      // If provided, just check for whitespace
+      if (apiKey && !API_KEY_ALLOWED_PATTERN.test(apiKey)) {
+        return { apiKey, error: "API key cannot contain whitespace.", ok: false };
       }
     } else if (!apiKey.startsWith(getExpectedApiKeyPrefix(service))) {
       return { apiKey, error: getPrefixMismatchError(service, apiKey), ok: false };

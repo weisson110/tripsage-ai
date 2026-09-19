@@ -37,18 +37,27 @@ import { getUnknownErrorMessage } from "@/lib/errors/get-unknown-error-message";
 import { validateApiKeyInput } from "@/lib/security/api-key-validation";
 import { recordClientErrorOnActiveSpan } from "@/lib/telemetry/client-errors";
 
-const SUPPORTED = ["openai", "openrouter", "anthropic", "xai", "ollama"] as const;
+const SUPPORTED = [
+  "openai",
+  "openrouter",
+  "anthropic",
+  "xai",
+  "ollama-cloud",
+  "ollama-local",
+] as const;
 
 type AllowedService = (typeof SUPPORTED)[number];
 
 const API_KEY_FORM_SCHEMA = z.strictObject({
   apiKey: z.string().min(1),
+  baseUrl: z.string().optional(),
   service: z.enum(SUPPORTED),
 });
 
 const PROVIDER_DISPLAY_NAMES: Record<AllowedService, string> = {
   anthropic: "Anthropic",
-  ollama: "Ollama (Cloud / Self-hosted)",
+  "ollama-cloud": "Ollama Cloud",
+  "ollama-local": "Ollama (Self-hosted)",
   openai: "OpenAI",
   openrouter: "OpenRouter",
   xai: "xAI",
@@ -57,12 +66,18 @@ const PROVIDER_DISPLAY_NAMES: Record<AllowedService, string> = {
 /** Per-provider help text shown below the API key input. */
 const PROVIDER_HELP_TEXT: Record<AllowedService, string> = {
   anthropic: "Get your key at console.anthropic.com",
-  ollama:
-    "Cloud: ollama.com/settings/keys · Self-hosted: any Ollama server URL (set OLLAMA_BASE_URL)",
+  "ollama-cloud": "Get your key at ollama.com/settings/keys",
+  "ollama-local":
+    "Optional: leave blank if your Ollama server doesn't require auth. Enter custom URL below.",
   openai: "Get your key at platform.openai.com/api-keys",
   openrouter: "Get your key at openrouter.ai/keys",
   xai: "Get your key at console.x.ai",
 };
+
+/** Providers that require a custom base URL input. */
+const PROVIDERS_WITH_CUSTOM_URL: ReadonlySet<AllowedService> = new Set([
+  "ollama-local",
+]);
 
 const SUPPORTED_SET: ReadonlySet<AllowedService> = new Set(SUPPORTED);
 
@@ -171,8 +186,12 @@ export function ApiKeysContent() {
     };
   }, [load, cancelRequests]);
 
-  const onSave = form.handleSubmitSafe(async ({ apiKey, service }) => {
-    const apiKeyResult = validateApiKeyInput(apiKey, { service });
+  const onSave = form.handleSubmitSafe(async ({ apiKey, baseUrl, service }) => {
+    // Ollama-local allows blank API key (no auth needed)
+    const isLocalOllama = service === "ollama-local";
+    const apiKeyResult = isLocalOllama
+      ? { ok: true as const, apiKey: apiKey || "ollama" }
+      : validateApiKeyInput(apiKey, { service });
     if (!apiKeyResult.ok) {
       toast({
         description: apiKeyResult.error,
@@ -189,8 +208,10 @@ export function ApiKeysContent() {
       await authenticatedApi.post("/api/keys", {
         apiKey: apiKeyResult.apiKey,
         service,
+        // Optional base URL for self-hosted providers (e.g., Ollama-local)
+        ...(baseUrl ? { baseUrl } : {}),
       });
-      form.reset({ apiKey: "", service });
+      form.reset({ apiKey: "", baseUrl: "", service });
       await load();
     } catch (error) {
       if (!signal || signal.aborted) return;
@@ -287,6 +308,7 @@ export function ApiKeysContent() {
   // Generate unique ids for form controls to satisfy accessibility and lint rules
   const serviceId = useId();
   const apiKeyId = useId();
+  const baseUrlId = useId();
   const gatewayFallbackLabelId = useId();
   const gatewayFallbackDescriptionId = useId();
   const gatewayFallbackNoteId = useId();
@@ -338,18 +360,48 @@ export function ApiKeysContent() {
                   </Select>
                 </div>
                 <div className="sm:col-span-2 space-y-2">
-                  <Label htmlFor={apiKeyId}>API Key</Label>
+                  <Label htmlFor={apiKeyId}>
+                    API Key
+                    {PROVIDERS_WITH_CUSTOM_URL.has(service) && (
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        (optional)
+                      </span>
+                    )}
+                  </Label>
                   <Input
                     autoComplete="off"
                     id={apiKeyId}
                     type="password"
-                    placeholder="Paste your API key"
+                    placeholder={
+                      PROVIDERS_WITH_CUSTOM_URL.has(service)
+                        ? "Leave blank if no auth required"
+                        : "Paste your API key"
+                    }
                     {...form.register("apiKey")}
                   />
                   <p className="text-xs text-muted-foreground">
                     {PROVIDER_HELP_TEXT[service]}
                   </p>
                 </div>
+                {PROVIDERS_WITH_CUSTOM_URL.has(service) && (
+                  <div className="sm:col-span-2 space-y-2">
+                    <Label htmlFor={baseUrlId}>Base URL (custom endpoint)</Label>
+                    <Input
+                      autoComplete="off"
+                      id={baseUrlId}
+                      type="url"
+                      placeholder="http://localhost:11434/v1"
+                      {...form.register("baseUrl")}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Full URL of your Ollama server (must include /v1 path).
+                      Examples:
+                      <br />• Local: <code>http://localhost:11434/v1</code>
+                      <br />• LAN: <code>http://192.168.1.100:11434/v1</code>
+                      <br />• Remote: <code>https://your-ollama.example.com/v1</code>
+                    </p>
+                  </div>
+                )}
               </>
             )}
           </div>

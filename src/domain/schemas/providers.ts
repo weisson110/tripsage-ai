@@ -16,7 +16,8 @@ export const providerIdSchema = z.enum([
   "openrouter",
   "anthropic",
   "xai",
-  "ollama",
+  "ollama-cloud",
+  "ollama-local",
 ]);
 
 /** TypeScript type for provider identifiers. */

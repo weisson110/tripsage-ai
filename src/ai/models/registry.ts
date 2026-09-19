@@ -31,7 +31,14 @@ const providerRegistryLogger = createServerLogger("ai.providers");
  * Provider preference order for BYOK key resolution.
  * Earlier providers in this array take precedence when multiple keys are available.
  */
-const PROVIDER_PREFERENCE: ProviderId[] = ["openai", "openrouter", "anthropic", "xai", "ollama"];
+const PROVIDER_PREFERENCE: ProviderId[] = [
+  "openai",
+  "openrouter",
+  "anthropic",
+  "xai",
+  "ollama-cloud",
+  "ollama-local",
+];
 
 class RejectedGatewayBaseUrlError extends Error {
   constructor(readonly reason: string) {
@@ -123,7 +130,8 @@ const DEFAULT_MODEL_MAPPER: ModelMapper = (
         throw new MissingExplicitProviderModelError(provider);
       case "xai":
         return DEFAULT_XAI_MODEL_ID;
-      case "ollama":
+      case "ollama-cloud":
+      case "ollama-local":
         // Ollama needs explicit model selection (e.g., "llama3.2", "qwen2.5")
         return DEFAULT_OLLAMA_MODEL_ID;
       default:
@@ -156,17 +164,24 @@ function createByokLanguageModel(
       return createAnthropic({ apiKey }).languageModel(modelId);
     case "xai":
       return createXai({ apiKey }).chat(modelId);
-    case "ollama":
+    case "ollama-cloud":
       // Ollama Cloud uses OpenAI-compatible API at https://ollama.com/v1
-      // (Local Ollama at http://localhost:11434/v1 also works the same way)
-      // Custom URL is supported via OLLAMA_BASE_URL env var.
-      const ollamaBaseUrl =
-        process.env.OLLAMA_BASE_URL || "https://ollama.com/v1";
       return createOpenAI({
         apiKey,
         // biome-ignore lint/style/useNamingConvention: provider option name
-        baseURL: ollamaBaseUrl,
+        baseURL: "https://ollama.com/v1",
       }).chat(modelId);
+    case "ollama-local": {
+      // Self-hosted Ollama — base URL is configured per-user in user_api_keys.metadata.baseUrl
+      // Falls back to localhost:11434 if not set.
+      const localBaseUrl =
+        process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
+      return createOpenAI({
+        apiKey: apiKey || "ollama", // Ollama doesn't require a key by default
+        // biome-ignore lint/style/useNamingConvention: provider option name
+        baseURL: localBaseUrl,
+      }).chat(modelId);
+    }
     default: {
       const _exhaustiveCheck: never = provider;
       throw new Error(`Unsupported provider: ${provider}`);
