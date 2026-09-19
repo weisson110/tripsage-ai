@@ -218,11 +218,22 @@ export async function handleTripSuggestions(
   deps: TripSuggestionsDeps,
   req: TripSuggestionsRequest
 ): Promise<Response> {
-  const suggestions = await generateSuggestionsWithCache(
-    deps,
-    { abortSignal: req.abortSignal },
-    req.userId,
-    req.params
-  );
-  return NextResponse.json(suggestions);
+  try {
+    const suggestions = await generateSuggestionsWithCache(
+      deps,
+      { abortSignal: req.abortSignal },
+      req.userId,
+      req.params
+    );
+    return NextResponse.json(suggestions);
+  } catch (error) {
+    // Suggestions are an optional dashboard enhancement. Any upstream failure
+    // (provider resolution, AI SDK, cache) degrades to an empty list instead
+    // of a 500 that breaks the whole dashboard.
+    deps.logger?.warn("trips_suggestions_failed", {
+      errorName: error instanceof Error ? error.name : typeof error,
+      reason: error instanceof Error ? error.message.slice(0, 300) : String(error),
+    });
+    return NextResponse.json([]);
+  }
 }
