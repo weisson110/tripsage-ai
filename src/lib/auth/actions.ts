@@ -62,8 +62,8 @@ async function enforceRateLimitForAuthAction(
   const ipHash = getTrustedRateLimitIdentifierFromHeaders(effectiveHeaders);
   const identifier = ipHash === "unknown" ? "ip:unknown" : `ip:${ipHash}`;
 
-  const degradedMode =
-    process.env.NODE_ENV === "development" ? "fail_open" : "fail_closed";
+  // 8848 fork: always fail_open (no Upstash Redis configured for self-hosted)
+  const degradedMode = "fail_open";
   const result = await enforceRateLimit(rateLimitKey, identifier, {
     degradedMode,
   });

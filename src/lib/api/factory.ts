@@ -308,22 +308,18 @@ export async function enforceRateLimit(
     apiFactoryLogger.warn("missing_rate_limit_config", {
       key: String(rateLimitKey),
     });
+    // 8848 fork: always fail_open when config missing (no Upstash Redis)
     if (options.degradedMode === "fail_closed") {
-      return errorResponse({
-        error: "rate_limit_unavailable",
-        reason: "Rate limiting misconfigured",
-        status: 503,
+      emitOperationalAlertOncePerWindow({
+        attributes: {
+          degradedMode: "fail_open",
+          rateLimitKey,
+          reason: "missing_config_override",
+        },
+        event: "ratelimit.degraded",
+        windowMs: 60_000,
       });
     }
-    emitOperationalAlertOncePerWindow({
-      attributes: {
-        degradedMode: "fail_open",
-        rateLimitKey,
-        reason: "missing_config",
-      },
-      event: "ratelimit.degraded",
-      windowMs: 60_000,
-    });
     return null;
   }
 
@@ -369,22 +365,15 @@ export async function enforceRateLimit(
       if (result.reason === "timeout") {
         return handleRateLimitTimeout(rateLimitKey, windowMs, options.degradedMode);
       }
-      if (options.degradedMode === "fail_closed") {
-        return errorResponse({
-          err: result.error,
-          error: "rate_limit_unavailable",
-          reason: "Rate limiting unavailable",
-          status: 503,
-        });
-      }
+      // 8848 fork: fail_open even in production when Upstash unavailable
       emitOperationalAlertOncePerWindow({
         attributes: {
           degradedMode: "fail_open",
           rateLimitKey,
-          reason: result.reason,
+          reason: "upstash_unavailable_override",
         },
         event: "ratelimit.degraded",
-        windowMs,
+        windowMs: 60_000,
       });
       return null;
     }
