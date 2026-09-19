@@ -118,8 +118,11 @@ export function useAuthenticatedApi() {
 
         const endpointPath = normalizeEndpoint(endpoint);
         const requestRetries = options.retries ?? 0;
-        // 15s default: serverless cold starts + upstream RPCs can easily exceed 3s.
-        const requestTimeout = options.timeout ?? 15000;
+        // 30s default: Vercel cold starts + first-time RPC + intermediate middleware
+        // can stack to >15s on a brand-new deployment. We've already seen user-facing
+        // timeouts at 15s; bumping to 30s gives cold-start room without leaving a
+        // hung request indefinitely.
+        const requestTimeout = options.timeout ?? 30000;
 
         // Build headers
         const headers = new Headers(options.headers);
