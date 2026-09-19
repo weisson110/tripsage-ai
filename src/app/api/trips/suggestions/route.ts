@@ -5,6 +5,7 @@
 import "server-only";
 
 import { resolveProvider } from "@ai/models/registry";
+import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { withApiGuards } from "@/lib/api/factory";
@@ -94,6 +95,15 @@ export const GET = withApiGuards({
         reason: "Invalid query parameters",
         status: 400,
       });
+    }
+    // Graceful degradation: dashboard cards treat suggestions as optional.
+    // When no AI provider is configured (no BYOK, no server fallback key),
+    // resolveProvider throws - return an empty list instead of a 500.
+    if (error instanceof Error && /no provider key found/i.test(error.message)) {
+      logger.warn("trips_suggestions_no_provider", {
+        reason: error.message.slice(0, 200),
+      });
+      return NextResponse.json([]);
     }
     throw error;
   }
