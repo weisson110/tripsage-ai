@@ -116,9 +116,9 @@ type ApiKeySummary = {
  * @returns The BYOK management UI component.
  */
 export function ApiKeysContent() {
-  const { authenticatedApi, cancelRequests } = useAuthenticatedApi();
+  const { authenticatedApi } = useAuthenticatedApi();
   const { toast } = useToast();
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [items, setItems] = useState<ApiKeySummary[]>([]);
@@ -141,8 +141,6 @@ export function ApiKeysContent() {
   }, [items]);
 
   const load = useCallback(async () => {
-    const signal = abortControllerRef.current?.signal;
-    if (!signal || signal.aborted) return;
     setLoading(true);
     try {
       const keysPromise = authenticatedApi.get<ApiKeySummary[]>("/api/keys");
@@ -151,12 +149,12 @@ export function ApiKeysContent() {
       }>("/api/user-settings");
 
       const [data, settings] = await Promise.all([keysPromise, settingsPromise]);
-      if (!signal.aborted) {
+      if (mountedRef.current) {
         setItems(data);
         setAllowGatewayFallback(settings.allowGatewayFallback);
       }
     } catch (error) {
-      if (!signal || signal.aborted) return;
+      if (!mountedRef.current) return;
       if (error instanceof ApiError && error.code === "REQUEST_CANCELLED") return;
       recordClientErrorOnActiveSpan(
         error instanceof Error ? error : new Error(String(error)),
@@ -171,7 +169,8 @@ export function ApiKeysContent() {
         variant: "destructive",
       });
     } finally {
-      if (!signal.aborted) {
+      // Always clear busy state so the Save button never gets stuck disabled.
+      if (mountedRef.current) {
         setLoading(false);
         setInitialLoading(false);
       }
@@ -179,14 +178,12 @@ export function ApiKeysContent() {
   }, [authenticatedApi, toast]);
 
   useEffect(() => {
-    abortControllerRef.current = new AbortController();
+    mountedRef.current = true;
     load();
     return () => {
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = null;
-      cancelRequests();
+      mountedRef.current = false;
     };
-  }, [load, cancelRequests]);
+  }, [load]);
 
   const onSave = form.handleSubmitSafe(async ({ apiKey, baseUrl, service }) => {
     // Ollama-local allows blank API key (no auth needed)
@@ -203,8 +200,6 @@ export function ApiKeysContent() {
       return;
     }
 
-    const signal = abortControllerRef.current?.signal;
-    if (!signal || signal.aborted) return;
     setLoading(true);
     try {
       await authenticatedApi.post("/api/keys", {
@@ -216,7 +211,7 @@ export function ApiKeysContent() {
       form.reset({ apiKey: "", baseUrl: "", service });
       await load();
     } catch (error) {
-      if (!signal || signal.aborted) return;
+      if (!mountedRef.current) return;
       if (error instanceof ApiError && error.code === "REQUEST_CANCELLED") return;
       recordClientErrorOnActiveSpan(
         error instanceof Error ? error : new Error(String(error)),
@@ -231,19 +226,17 @@ export function ApiKeysContent() {
         variant: "destructive",
       });
     } finally {
-      if (!signal.aborted) setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   });
 
   const onDelete = async (svc: AllowedService) => {
-    const signal = abortControllerRef.current?.signal;
-    if (!signal || signal.aborted) return;
     setLoading(true);
     try {
       await authenticatedApi.delete(`/api/keys/${encodeURIComponent(svc)}`);
       await load();
     } catch (error) {
-      if (!signal || signal.aborted) return;
+      if (!mountedRef.current) return;
       if (error instanceof ApiError && error.code === "REQUEST_CANCELLED") return;
       recordClientErrorOnActiveSpan(
         error instanceof Error ? error : new Error(String(error)),
@@ -258,7 +251,7 @@ export function ApiKeysContent() {
         variant: "destructive",
       });
     } finally {
-      if (!signal.aborted) setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   };
 
