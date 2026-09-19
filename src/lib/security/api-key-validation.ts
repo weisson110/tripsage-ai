@@ -6,7 +6,12 @@ export type ApiKeyValidationResult =
   | { ok: true; apiKey: string }
   | { ok: false; apiKey: string; error: string };
 
-export type ApiKeyService = "openai" | "openrouter" | "anthropic" | "xai";
+export type ApiKeyService =
+  | "openai"
+  | "openrouter"
+  | "anthropic"
+  | "xai"
+  | "ollama";
 
 const DEFAULT_API_KEY_MIN_LENGTH = 20;
 const API_KEY_ALLOWED_PATTERN = /^[^\s]+$/;
@@ -15,6 +20,8 @@ const OPENAI_PREFIX = "sk-";
 const OPENROUTER_PREFIX = "sk-or-";
 const ANTHROPIC_PREFIX = "sk-ant-";
 const XAI_PREFIX = "xai-";
+// Ollama keys vary by deployment; only enforce a minimum length.
+const OLLAMA_MIN_LENGTH = 20;
 
 function getExpectedApiKeyPrefix(service: ApiKeyService): string {
   switch (service) {
@@ -26,6 +33,9 @@ function getExpectedApiKeyPrefix(service: ApiKeyService): string {
       return OPENROUTER_PREFIX;
     case "xai":
       return XAI_PREFIX;
+    case "ollama":
+      // Ollama keys don't have a fixed prefix
+      return "";
   }
 }
 
@@ -44,6 +54,10 @@ function getPrefixMismatchError(service: ApiKeyService, apiKey: string): string 
     return `OpenRouter API keys must start with '${OPENROUTER_PREFIX}' (e.g., 'sk-or-v1-…').`;
   }
 
+  if (service === "ollama") {
+    return `Ollama keys must be at least ${OLLAMA_MIN_LENGTH} characters.`;
+  }
+
   const expectedPrefix = getExpectedApiKeyPrefix(service);
   return `${getServiceDisplayName(service)} API keys must start with '${expectedPrefix}'.`;
 }
@@ -52,6 +66,8 @@ function getServiceDisplayName(service: ApiKeyService): string {
   switch (service) {
     case "anthropic":
       return "Anthropic";
+    case "ollama":
+      return "Ollama";
     case "openai":
       return "OpenAI";
     case "openrouter":
@@ -99,6 +115,15 @@ export function validateApiKeyInput(
         apiKey.startsWith(OPENROUTER_PREFIX) || apiKey.startsWith(ANTHROPIC_PREFIX);
       if (hasWrongProviderPrefix || !apiKey.startsWith(OPENAI_PREFIX)) {
         return { apiKey, error: getPrefixMismatchError(service, apiKey), ok: false };
+      }
+    } else if (service === "ollama") {
+      // Ollama only requires minimum length (no fixed prefix)
+      if (apiKey.length < OLLAMA_MIN_LENGTH) {
+        return {
+          apiKey,
+          error: `Ollama keys must be at least ${OLLAMA_MIN_LENGTH} characters.`,
+          ok: false,
+        };
       }
     } else if (!apiKey.startsWith(getExpectedApiKeyPrefix(service))) {
       return { apiKey, error: getPrefixMismatchError(service, apiKey), ok: false };

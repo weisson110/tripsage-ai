@@ -7,6 +7,7 @@ import "server-only";
 import {
   DEFAULT_OPENAI_MODEL_ID,
   DEFAULT_OPENROUTER_MODEL_ID,
+  DEFAULT_OLLAMA_MODEL_ID,
   DEFAULT_XAI_MODEL_ID,
 } from "@ai/models/defaults";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -30,7 +31,7 @@ const providerRegistryLogger = createServerLogger("ai.providers");
  * Provider preference order for BYOK key resolution.
  * Earlier providers in this array take precedence when multiple keys are available.
  */
-const PROVIDER_PREFERENCE: ProviderId[] = ["openai", "openrouter", "anthropic", "xai"];
+const PROVIDER_PREFERENCE: ProviderId[] = ["openai", "openrouter", "anthropic", "xai", "ollama"];
 
 class RejectedGatewayBaseUrlError extends Error {
   constructor(readonly reason: string) {
@@ -122,6 +123,9 @@ const DEFAULT_MODEL_MAPPER: ModelMapper = (
         throw new MissingExplicitProviderModelError(provider);
       case "xai":
         return DEFAULT_XAI_MODEL_ID;
+      case "ollama":
+        // Ollama needs explicit model selection (e.g., "llama3.2", "qwen2.5")
+        return DEFAULT_OLLAMA_MODEL_ID;
       default:
         return DEFAULT_XAI_MODEL_ID;
     }
@@ -152,6 +156,17 @@ function createByokLanguageModel(
       return createAnthropic({ apiKey }).languageModel(modelId);
     case "xai":
       return createXai({ apiKey }).chat(modelId);
+    case "ollama":
+      // Ollama Cloud uses OpenAI-compatible API at https://ollama.com/v1
+      // (Local Ollama at http://localhost:11434/v1 also works the same way)
+      // Custom URL is supported via OLLAMA_BASE_URL env var.
+      const ollamaBaseUrl =
+        process.env.OLLAMA_BASE_URL || "https://ollama.com/v1";
+      return createOpenAI({
+        apiKey,
+        // biome-ignore lint/style/useNamingConvention: provider option name
+        baseURL: ollamaBaseUrl,
+      }).chat(modelId);
     default: {
       const _exhaustiveCheck: never = provider;
       throw new Error(`Unsupported provider: ${provider}`);

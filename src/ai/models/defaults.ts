@@ -24,5 +24,8 @@ export const DEFAULT_OPENROUTER_MODEL_ID = `openai/${DEFAULT_OPENAI_MODEL_ID}`;
 /** xAI default used only when xAI is the resolved BYOK/server provider. */
 export const DEFAULT_XAI_MODEL_ID = "grok-4.3";
 
+/** Ollama Cloud default model (llama3.2 is widely available; users can override). */
+export const DEFAULT_OLLAMA_MODEL_ID = "llama3.2";
+
 /** Default model for admin-created planning-agent configurations. */
 export const DEFAULT_AGENT_MODEL_ID = MODEL_PROFILES.planning.directModelId;

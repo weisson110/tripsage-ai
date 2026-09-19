@@ -37,7 +37,7 @@ import { getUnknownErrorMessage } from "@/lib/errors/get-unknown-error-message";
 import { validateApiKeyInput } from "@/lib/security/api-key-validation";
 import { recordClientErrorOnActiveSpan } from "@/lib/telemetry/client-errors";
 
-const SUPPORTED = ["openai", "openrouter", "anthropic", "xai"] as const;
+const SUPPORTED = ["openai", "openrouter", "anthropic", "xai", "ollama"] as const;
 
 type AllowedService = (typeof SUPPORTED)[number];
 
@@ -48,9 +48,20 @@ const API_KEY_FORM_SCHEMA = z.strictObject({
 
 const PROVIDER_DISPLAY_NAMES: Record<AllowedService, string> = {
   anthropic: "Anthropic",
+  ollama: "Ollama (Cloud / Self-hosted)",
   openai: "OpenAI",
   openrouter: "OpenRouter",
   xai: "xAI",
+};
+
+/** Per-provider help text shown below the API key input. */
+const PROVIDER_HELP_TEXT: Record<AllowedService, string> = {
+  anthropic: "Get your key at console.anthropic.com",
+  ollama:
+    "Cloud: ollama.com/settings/keys · Self-hosted: any Ollama server URL (set OLLAMA_BASE_URL)",
+  openai: "Get your key at platform.openai.com/api-keys",
+  openrouter: "Get your key at openrouter.ai/keys",
+  xai: "Get your key at console.x.ai",
 };
 
 const SUPPORTED_SET: ReadonlySet<AllowedService> = new Set(SUPPORTED);
@@ -335,6 +346,9 @@ export function ApiKeysContent() {
                     placeholder="Paste your API key"
                     {...form.register("apiKey")}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    {PROVIDER_HELP_TEXT[service]}
+                  </p>
                 </div>
               </>
             )}

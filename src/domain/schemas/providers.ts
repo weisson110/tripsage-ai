@@ -11,7 +11,13 @@ import { z } from "zod";
  * Zod schema for provider identifiers.
  * Defines supported AI providers in the system.
  */
-export const providerIdSchema = z.enum(["openai", "openrouter", "anthropic", "xai"]);
+export const providerIdSchema = z.enum([
+  "openai",
+  "openrouter",
+  "anthropic",
+  "xai",
+  "ollama",
+]);
 
 /** TypeScript type for provider identifiers. */
 export type ProviderId = z.infer<typeof providerIdSchema>;
