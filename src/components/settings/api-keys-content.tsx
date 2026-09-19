@@ -49,7 +49,9 @@ const SUPPORTED = [
 type AllowedService = (typeof SUPPORTED)[number];
 
 const API_KEY_FORM_SCHEMA = z.strictObject({
-  apiKey: z.string().min(1),
+  // Allow empty string: validation (prefix/length/required) happens in onSave
+  // via validateApiKeyInput. ollama-local legitimately allows a blank key.
+  apiKey: z.string(),
   baseUrl: z.string().optional(),
   service: z.enum(SUPPORTED),
 });
