@@ -15,7 +15,9 @@ export type SupportedService =
   | "openrouter"
   | "anthropic"
   | "xai"
-  | "gateway";
+  | "gateway"
+  | "ollama-cloud"
+  | "ollama-local";
 
 type RpcOperation = "delete" | "gateway_config" | "get" | "health" | "insert" | "touch";
 
@@ -23,7 +25,14 @@ type RpcTelemetryResult<T> = { ok: true; value: T } | { error: Error; ok: false 
 
 function normalizeService(service: string): SupportedService {
   const s = service.trim().toLowerCase();
-  if (s === "openai" || s === "openrouter" || s === "anthropic" || s === "xai") {
+  if (
+    s === "openai" ||
+    s === "openrouter" ||
+    s === "anthropic" ||
+    s === "xai" ||
+    s === "ollama-cloud" ||
+    s === "ollama-local"
+  ) {
     return s;
   }
   if (s === "gateway") return s;

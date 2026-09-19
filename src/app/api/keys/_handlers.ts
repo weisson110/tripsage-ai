@@ -11,7 +11,15 @@ import { getMany } from "@/lib/supabase/typed-helpers";
 import { vaultUnavailableResponse } from "./_error-mapping";
 
 /** Set of allowed API service providers for key storage. */
-const ALLOWED = new Set(["openai", "openrouter", "anthropic", "xai", "gateway"]);
+const ALLOWED = new Set([
+  "openai",
+  "openrouter",
+  "anthropic",
+  "xai",
+  "gateway",
+  "ollama-cloud",
+  "ollama-local",
+]);
 
 /**
  * Dependencies interface for keys handlers.
